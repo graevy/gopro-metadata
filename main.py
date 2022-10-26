@@ -22,6 +22,8 @@ def main():
     csv_dir = args.output_dir
 
     # make directories
+    if os.path.exists(GPX_TEMP_DIR):
+        raise Exception(GPX_TEMP_DIR + " already exists; would be removed; aborting")
     subprocess.run(["mkdir", "-p", GPX_TEMP_DIR])
     subprocess.run(["mkdir", "-p", csv_dir])
 

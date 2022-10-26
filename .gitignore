@@ -1,0 +1,7 @@
+__pycache__
+.vscode
+backup_sample_data
+tgtoken
+tgdata
+tg.py
+xmltocsv.py
