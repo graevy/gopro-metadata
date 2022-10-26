@@ -3,5 +3,6 @@ It then converts extracted GPX data from XML to CSV via gpxpy.
 
 
 Usage:
+- pip install gpxpy
 - mount gopro sdcard
 - python main.py path/to/gopro/videos csv/dump/dir
