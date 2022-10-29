@@ -1,12 +1,8 @@
-import subprocess
 import os
-import json
 import argparse
 import csv
 
-import gpxpy
-
-import exiftool
+import gpxgen
 import serials
 
 
@@ -37,6 +33,7 @@ class CSVGenerator:
         self.video_ext = self.args.extension.upper()
         self.gopro_serials = serials.load_serial_map()
     
+    # TODO P3: bad name
     def get_serial(self, file):
         """rips serial metadata from LRVs
         """
@@ -52,30 +49,6 @@ class CSVGenerator:
         else:
             self.serial_map_updated = False
             return self.gopro_serials[serial]
-
-    # run exiftool to generate GPX files (GPX is an XML subset) from video metadata,
-    # sourced from gopro "Low Resolution Video" files: 240p 30fps MP4 w/ identical metadata
-    # decided not to roll these into a class/map
-    def generate_gpxes(self):
-        """creates gpx files from gopro LRVs via exiftool
-        """
-        subprocess.run((
-            "exiftool", "-p", GPX_FORMAT_FILE, "-ee", "-ext", self.video_ext,
-            "-w", GPX_TEMP_DIR + r"%f.gpx", self.gopro_dir
-        ))
-        self.gpxes = (file for file in sorted(os.listdir(GPX_TEMP_DIR)))
-
-    def parse_segment(self, file):
-        """instantiate gpxpy segment objects from GPX files
-
-        Args:
-            file (str): a gpx file created by exiftool
-
-        Returns:
-            GPXTrackSegment: to be merged into one Track in main()
-        """
-        with open(GPX_TEMP_DIR + file) as input:
-            return gpxpy.parse(input).tracks[0].segments[0]
 
     def write_csv(self, points, gopro_user, out_file):
         """given iterable<GPXTrackPoint>, write csv to specified path
@@ -99,37 +72,32 @@ class CSVGenerator:
                 ])
 
     def main(self):
-        # make directories
-        if os.path.exists(GPX_TEMP_DIR):
-            raise Exception(GPX_TEMP_DIR + " already exists; would be removed; aborting")
-        os.makedirs(GPX_TEMP_DIR)
         os.makedirs(self.csv_dir, exist_ok=True)
 
-        exiftool.generate_gpxes(self.gopro_dir, self.video_ext)
-
-        track = gpxpy.gpx.GPXTrack()
+        gpxgen.generate_gpxes(self.gopro_dir, self.video_ext)
 
         # prepare gpx segments to call write_csv with
         # this is a fucking mess because of the exiftool bug*
         # and maybe skip-flatten is unnecessary
-        # i refactored this 3 times and it still feels like it should be broken up more
+        # i refactored this 4 times and it still feels like it should be broken up more
         points = []
-        for file in self.gpxes:
-            segment = exiftool.parse_segment(file)
-            # while we're inside this loop, populate track
-            track.segments.append(segment)
+        for file in gpxgen.get_gpxes():
+            segment = gpxgen.parse_segment(file)
             # strip file extension because this string is going to be used to both
             # name the output .csv file, and grab the gopro serial
             file = file.rsplit(".")[0]
             gopro_user = self.get_serial(self.gopro_dir + file + '.' + self.video_ext)
-            # sometimes the gopro generates tiny segments
-            # TODO P3: delete tiny segments w/ confirmation
+
             if len(segment.points) < 3:
+                # sometimes the gopro generates tiny segments
+                # TODO P3: delete tiny segments w/ confirmation
                 raise Exception(f"gpx file {file} needs at least 2 points")
+
             if self.args.skip_flatten:
                 self.write_csv(segment.points, gopro_user, file)
             else:
                 points.extend(segment.points)
+
         if not self.args.skip_flatten:
             self.write_csv(points, gopro_user, "out")
 
@@ -138,8 +106,7 @@ class CSVGenerator:
         # - remove gpx files
         # - save the serial map if it updated
         # TODO P2: stream the gpx files into the csv writer
-        # TODO P3: might want to use shutil for this? rm -rf has me uneasy
-        subprocess.run(("rm", "-rf", exiftool.GPX_TEMP_DIR))
+        gpxgen.delete_gpxes()
         if self.serial_map_updated:
             serials.save_serial_map(self.gopro_serial_numbers)
 
