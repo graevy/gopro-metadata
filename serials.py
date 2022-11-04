@@ -1,26 +1,48 @@
-import subprocess
 import json
+
+import exiftool
+
+
+SERIAL_METADATA_STRING = 'QuickTime:CameraSerialNumber'
+SERIAL_FILE = 'serials.json'
 
 
 def load_serial_map():
-    with open('serials.json') as f:
+    with open(SERIAL_FILE) as f:
         return json.load(f)
 
 def save_serial_map(serials):
-    with open('serials.json', 'w+') as f:
+    with open(SERIAL_FILE, 'w+') as f:
         json.dump(serials, f)
 
-# the sixth line on these LRV files contains the gopro serial number
-# the problem is that currently i am 1. scanning the whole file with strings, and
-# 2. video data preceeding strings is sometimes valid utf-8?
 def get_serial_from_file(file):
-    with open(file) as f:
-        strings = subprocess.run(("strings", file), capture_output=True).stdout
-    sed = subprocess.Popen(("sed", "6q;d"), stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    bytes = sed.communicate(strings)[0].strip()
-    return bytes.decode()
+    # note: if this errors it's usually because it requires a full file path
+    # it returns a list...of a map...of a tag...
+    # there's probably a better way to do this inside exiftool.execute()
+    return exiftool.ExifToolHelper().get_tags(
+        file, SERIAL_METADATA_STRING
+        )[0][SERIAL_METADATA_STRING]
 
 def add_serial(serial, name):
     serials = load_serial_map()
     serials[serial] = name
     save_serial_map(serials)
+
+def check_file(file):
+    """queries cli to handle unrecognized gopro serials
+
+    Args:
+        file (str): gopro LRV filename
+
+    Returns:
+        str: name of gopro user
+    """
+    serials = load_serial_map()
+    serial = get_serial_from_file(file)
+    if serial not in serials:
+        newuser = input(f"""unknown gopro serial '{serial}'. 
+        name it or leave blank if unknown >>>""")
+        add_serial(serial, newuser if newuser != "" else serial)
+        return newuser
+    else:
+        return serials[serial]

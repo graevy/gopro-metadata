@@ -2,7 +2,7 @@ __pycache__
 .vscode
 backup_sample_data
 csv
-gpx_tmp_dir
+gpx_temp_dir
 tgtoken
 tgdata
 tg.py
