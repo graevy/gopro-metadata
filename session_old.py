@@ -1,7 +1,8 @@
 import os
 import datetime
-import gpxpy
+import gpxpy.gpx as gpx
 import dataclasses
+from gpxpy.gpxfield import SimpleTZ # ope
 import meteostat
 
 import lib
@@ -14,11 +15,9 @@ import hilight
 @dataclasses.dataclass
 class MetaTrack:
     user: str
-    track: gpxpy.gpx.GPXTrack = gpxpy.gpx.GPXTrack()
+    track: gpx.GPXTrack = gpx.GPXTrack()
     weather: meteostat.Hourly = None
-    hilights: list = dataclasses.field(
-        default_factory=lambda : []
-        )
+    hilights: list = dataclasses.field(default_factory=lambda : [])
 
 
 @dataclasses.dataclass
@@ -27,18 +26,45 @@ class HiLight:
     user: str
 
 
+# TODO P2: i think session should just take a file list, and session should be
+# handled by something that automatically determines what a session is --
+# most likely, files grouped with e.g. > 10 hours difference between them
+# it's unrealistic to expect everyone to not accidentally upload old gopro videos
 class Session:
-    def __init__(self, meta_segments):
-        self.users = set(mt.user for mt in meta_segments)
+    def __init__(self, args, files):
+        self.input_dir = args.input_dir
 
+        input_files = files
+
+        # assemble a set of unique gopro users
+        self.users = set(serials.check_file(args.input_dir + os.sep + file) for file in input_files)
+        # each user gets a track
         self.mt_map = {user:MetaTrack(user) for user in self.users}
         self.meta_tracks = tuple(self.mt_map.values())
 
-        # unpack the metasegments into metatracks; attach hilights
-        for ms in meta_segments:
-            mt = self.mt_map[ms.user]
-            mt.track.segments.append(ms.segment)
-            mt.hilights.append(ms.hilights)
+        # each gopro file is a segment, belonging to a user's track
+        # the segments must be loaded into that track
+        # each file also contains gopro hilights, which represent user timestamps
+        for file in input_files:
+            if file.endswith(lib.INPUT_VIDEO_EXT):
+                abs_path = args.input_dir + os.sep + file
+                user = serials.check_file(abs_path)
+                mt = self.mt_map[user]
+                file_no_ext = file.split(".", maxsplit=1)[0]
+                segment = gpxgen.parse_segment(file_no_ext + ".gpx")
+                mt.track.segments.append(segment)
+
+                # attach any corresponding gopro hilights
+                # the hilight code is so awful i don't want to touch it
+                # i'm just datetiming its output here
+                t_0 = segment.get_time_bounds()[0]
+                mt.hilights.extend(
+                    HiLight(
+                        t_0 + datetime.timedelta(seconds=hl), user
+                    ) for hl in sorted(
+                        hilight.examine_mp4(abs_path)
+                        )
+                    )
 
         # session weather needs the earliest and last track times
         if len(self.meta_tracks) < 1:
@@ -51,6 +77,8 @@ class Session:
                     self.t_0 = t_min
                 if t_max > self.t_f:
                     self.t_f = t_max
+                print(f"considered: min {t_min}, max {t_max}")
+                print(f"current: min {self.t_0}, max {self.t_f}")
 
         # center of the edges of the session
         center_latitude = sum(mt.track.get_center().latitude for mt in self.meta_tracks) \
@@ -67,18 +95,21 @@ class Session:
         except:
             self.weather = None
             print("didn't connect to weather service")
-
+        
     def locations_at_time(self, time):
         return tuple(mt.track.get_location_at(time) for mt in self.meta_tracks)
 
-    # if a highlight is within 10s of another highlight, treat them as the same
-    # quick and dirty linearithmic
-    def filter_hilights(self):
-        hilights = sorted(
-            (hl for mt in self.meta_tracks for hl in mt.hilights),
-            key=lambda hl: hl.time
-            )
+    # TODO: P1
+    def weather_at_time(self, time): pass
 
+    # if a highlight is within 15 seconds of another highlight, treat them as the same
+    # quick and dirty linearithmic
+    # return clusters: [[datetime.datetime(hilight)]]
+    def filter_hilights(self):
+        # hilights need a custom hashing function that chunks them into discrete intervals
+        # this will have to do
+        hilights = sorted((hl for track in self.meta_tracks for hl in track.hilights),
+            key=lambda hl: hl.time)
         if not hilights:
             print("no highlights to filter")
             return []
@@ -90,9 +121,10 @@ class Session:
             if i == len(hilights):
                 clusters.append(current_cluster)
                 break
-            if hilights[i].time.timestamp() - hl.time.timestamp() > 10:
+            if hilights[i].time.second - hl.time.second > 10:
                 clusters.append(current_cluster)
                 current_cluster.clear()
+
         return clusters
 
     def hilight_reel(self):
@@ -101,24 +133,18 @@ class Session:
             cluster_avg_time = datetime.datetime.fromtimestamp(
                 sum(hl.time.timestamp() for hl in cluster) / len(cluster),
                 # TODO P2: timezone hell
-                tz=gpxpy.gpxfield.SimpleTZ("Z")
+                tz=SimpleTZ("Z")
             )
 
-            locs = tuple(
-                mt.track.get_location_at(cluster_avg_time) for mt in self.meta_tracks
-                )
-
+            locs = tuple(mt.track.get_location_at(cluster_avg_time) for mt in self.meta_tracks)
             for segment in locs:
                 loc_lat  = sum(loc.latitude  for loc in segment) / len(locs)
                 loc_long = sum(loc.longitude for loc in segment) / len(locs)
             loc = tuple((loc_lat, loc_long))
-
             # TODO P1: test
-            print(f"""Event at {cluster_avg_time.time()} \
-                from {len(cluster)} devices centered at {loc}: """)
-
+            print(f"""Event at {cluster_avg_time.time()} from {len(cluster)} devices centered at {loc}: """)
             for entry in cluster:
-                print(f"""    Device owned by {entry.user} recorded at \
-                    {self.mt_map[entry.user].track.get_location_at(cluster_avg_time)}""")
-
+                print(f"""    Device owned by {entry.user} recorded at {self.mt_map[entry.user].track.get_location_at(cluster_avg_time)}""")
         # sort lowest-to-highest (incl negatives) 3d distance from center of all hilights?
+
+

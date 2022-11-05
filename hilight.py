@@ -11,6 +11,13 @@ https://www.kaggle.com/humananalog/examine-mp4-files-with-python-only
 
 import os
 import struct
+import datetime
+import dataclasses
+
+@dataclasses.dataclass
+class HiLight:
+    time: datetime.datetime
+    user: str
 
 
 def find_boxes(f, start_offset=0, end_offset=float("inf")):

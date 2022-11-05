@@ -8,12 +8,9 @@ import serials
 
 class CSVGenerator:
     def __init__(self, input, output, skip_flatten):
-        self.input = input
-        self.output = output
+        self.input = input + os.sep
+        self.output = output + os.sep
         self.skip_flatten = skip_flatten
-
-        self.gopro_dir = self.input + os.sep
-        self.csv_dir = self.output + os.sep
 
     def write_csv(self, points, gopro_user, out_file):
         """given iterable<GPXTrackPoint>, write csv to specified path
@@ -23,7 +20,7 @@ class CSVGenerator:
             gopro_user (str): user associated with a gopro
             out_file (str): name the .csv (no extension)
         """
-        csv_subdir = self.csv_dir + gopro_user + os.sep
+        csv_subdir = self.output + gopro_user + os.sep
         os.makedirs(csv_subdir, exist_ok=True)
         with open(csv_subdir + out_file + ".csv", "w+", newline='') as out_file:
             writer = csv.writer(out_file)
@@ -38,7 +35,7 @@ class CSVGenerator:
                 ])
 
     def main(self):
-        os.makedirs(self.csv_dir, exist_ok=True)
+        os.makedirs(self.output, exist_ok=True)
 
         # prepare gpx segments to call write_csv with
         # this is a fucking mess because of the exiftool bug*
@@ -50,7 +47,7 @@ class CSVGenerator:
             # strip file extension because this string is going to be used to both
             # name the output .csv file, and grab the gopro serial
             file = file.rsplit(".")[0]
-            gopro_user = serials.check_file(self.gopro_dir + file + "." + lib.INPUT_VIDEO_EXT)
+            gopro_user = serials.check_file(self.input + file + "." + lib.INPUT_VIDEO_EXT)
 
             if len(segment.points) < 3:
                 # sometimes the gopro generates tiny segments
