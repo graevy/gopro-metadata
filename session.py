@@ -1,21 +1,17 @@
-import os
 import datetime
 import gpxpy
 import dataclasses
 import meteostat
+import typing
 
-import lib
-import serials
-import gpxgen
 import meteo
-import hilight
 
 
 @dataclasses.dataclass
 class MetaTrack:
     user: str
     track: gpxpy.gpx.GPXTrack = gpxpy.gpx.GPXTrack()
-    weather: meteostat.Hourly = None
+    weather: typing.Optional[meteostat.Hourly] = None
     hilights: list = dataclasses.field(
         default_factory=lambda : []
         )
@@ -25,6 +21,16 @@ class MetaTrack:
 class HiLight:
     time: datetime.datetime
     user: str
+    location: gpxpy.gpx.GPXTrackPoint
+
+
+@dataclasses.dataclass
+class HiLightCluster:
+    entries: tuple
+    center_time: datetime.datetime
+    center_pos: gpxpy.gpx.GPXTrackPoint
+    humidity: typing.Optional[float]
+    temperature: typing.Optional[float]
 
 
 class Session:
@@ -73,7 +79,12 @@ class Session:
 
     # if a highlight is within 10s of another highlight, treat them as the same
     # quick and dirty linearithmic
-    def filter_hilights(self):
+    def _filter_hilights(self):
+        """groups hilights into clusters more than 10s apart
+
+        Returns:
+            list[list[hilight]]: of clusters
+        """
         hilights = sorted(
             (hl for mt in self.meta_tracks for hl in mt.hilights),
             key=lambda hl: hl.time
@@ -96,7 +107,7 @@ class Session:
         return clusters
 
     def hilight_reel(self):
-        for cluster in self.filter_hilights():
+        for cluster in self._filter_hilights():
             # TODO P3: naming hell
             cluster_avg_time = datetime.datetime.fromtimestamp(
                 sum(hl.time.timestamp() for hl in cluster) / len(cluster),
@@ -104,21 +115,37 @@ class Session:
                 tz=gpxpy.gpxfield.SimpleTZ("Z")
             )
 
-            locs = tuple(
-                mt.track.get_location_at(cluster_avg_time) for mt in self.meta_tracks
-                )
+            loc_map = {
+                mt.user:\
+                mt.track.get_location_at(cluster_avg_time)\
+                for mt in self.meta_tracks
+            }
 
-            for segment in locs:
-                loc_lat  = sum(loc.latitude  for loc in segment) / len(locs)
-                loc_long = sum(loc.longitude for loc in segment) / len(locs)
-            loc = tuple((loc_lat, loc_long))
+            center_lat, center_long, center_ele = 0, 0, 0
+            for point in loc_map.values():
+                for loc in point:
+                    center_lat += loc.latitude
+                    center_long += loc.longitude
+                    center_ele += loc.elevation
+            center_lat /= len(loc_map)
+            center_long /= len(loc_map)
+            center_ele /= len(loc_map)
+
+            center = tuple((center_lat, center_long, center_ele))
 
             # TODO P1: test
             print(f"""Event at {cluster_avg_time.time()} \
-                from {len(cluster)} devices centered at {loc}: """)
+                from {len(cluster)} devices centered at {center}: """)
 
             for entry in cluster:
-                print(f"""    Device owned by {entry.user} recorded at \
-                    {self.mt_map[entry.user].track.get_location_at(cluster_avg_time)}""")
+                lat_offset  = entry.latitude  - center.latitude
+                long_offset = entry.longitude - center.longitude
+                ele_offset  = entry.elevation - center.elevation
+                dist_from_center = (
+                    lat_offset  ** 2 +\
+                    long_offset ** 2 +\
+                    ele_offset ** 2
+                ) ** (1/2)
 
-        # sort lowest-to-highest (incl negatives) 3d distance from center of all hilights?
+                print(f"""    User {entry.user} recorded {dist_from_center} from center: \
+                    {lat_offset} ΔLat., {long_offset} ΔLong., {ele_offset} ΔElev.""")
