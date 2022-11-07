@@ -1,14 +1,7 @@
-import subprocess
-import os
-import shutil
 import gpxpy
 import exiftool
 
 import lib
-
-
-GPX_FORMAT_FILE = "gpx.fmt"
-GPX_TEMP_DIR = "gpx_temp_dir" + os.sep
 
 
 def parse_segment(file):
@@ -23,6 +16,6 @@ def parse_segment(file):
     with exiftool.ExifTool() as et:
         return gpxpy.parse(
             et.execute(
-            "-p", GPX_FORMAT_FILE, "-ee", "-ext", lib.INPUT_VIDEO_EXT, file
+            "-p", lib.GPX_FORMAT_FILE, "-ee", "-ext", lib.INPUT_VIDEO_EXT, file
                 )
             )

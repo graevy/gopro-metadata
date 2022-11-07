@@ -1,5 +1,5 @@
 import argparse
-import os
+from os import sep
 
 import lib
 import csvgen
@@ -12,13 +12,16 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("input_dir", help="directory of gopro LRVs (and MP4s, THMs)")
 
-    parser.add_argument("-csv", "--csv",
-        help=f"write csv files in specified dir",
+    parser.add_argument("-c", "--csv",
+        help=f"write csv files in {lib.CSV_OUTPUT_DIR}",
+        action='store_true')
+    parser.add_argument("-o", "--output-dir",
+        help=f"force a non-default csv write dir",
         action='store')
 
     # argparse replaces - with _ to avoid having to use e.g. args.__dict__["skip-flatten"]
     parser.add_argument("-sf", "--skip-flatten",
-        help="don't combine input files into one output file",
+        help="don't combine track segments into one output csv",
         action='store_true')
 
     return parser.parse_args()
@@ -30,9 +33,10 @@ if __name__ == '__main__':
     sessions = sessionfilter.generate_sessions(args)
 
     if args.csv:
+        root = args.output_dir if args.output_dir else lib.CSV_OUTPUT_DIR
         for session in sessions:
             for mt in session.meta_tracks:
-                out_dir = lib.CSV_OUTPUT_DIR + os.sep + mt.user + os.sep
+                out_dir = root + sep + mt.user + sep
                 if args.skip_flatten:
                     csvgen.write_csv(
                         points=(point for segment in mt.track.segments for point in segment),

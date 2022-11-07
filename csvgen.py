@@ -2,11 +2,6 @@ import os
 import csv
 
 
-# class CSVGenerator:
-    # def __init__(self, points, input_dir, output_dir):
-    #     self.input_dir = input_dir + os.sep
-    #     self.output_dir = output_dir + os.sep
-
 def write_csv(points, out_file):
     """given iterable<GPXTrackPoint>, write csv to specified path
 
@@ -27,37 +22,6 @@ def write_csv(points, out_file):
                 point.elevation,
                 point.time
             ])
-
-    # def main(self):
-    #     os.makedirs(self.output, exist_ok=True)
-
-    #     # prepare gpx segments to call write_csv with
-    #     # this is a fucking mess because of the exiftool bug*
-    #     # and maybe skip-flatten is unnecessary
-    #     # i refactored this 4 times and it still feels like it should be broken up more
-    #     points = []
-    #     for file in gpxgen.get_gpxes():
-    #         segment = gpxgen.parse_segment(file)
-    #         # strip file extension because this string is going to be used to both
-    #         # name the output .csv file, and grab the gopro serial
-    #         file = file.rsplit(".")[0]
-    #         gopro_user = serials.check_file(self.input_dir + file + "." + lib.INPUT_VIDEO_EXT)
-
-    #         if len(segment.points) < 3:
-    #             # sometimes the gopro generates tiny segments
-    #             # TODO P3: delete tiny segments w/ confirmation
-    #             raise Exception(f"gpx file {file} needs at least 2 points")
-
-    #         if self.skip_flatten:
-    #             self.write_csv(segment.points, gopro_user, file)
-    #         else:
-    #             points.extend(segment.points)
-
-    #     if not self.skip_flatten:
-    #         self.write_csv(points, gopro_user, "out")
-
-        # TODO P2: if --preserve, stream the gpx files into the csv writer?
-        # probably via exiftool piping wizardry
 
 
 # *
