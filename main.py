@@ -13,11 +13,8 @@ def parse_args():
     parser.add_argument("input_dir", help="directory of gopro LRVs (and MP4s, THMs)")
 
     parser.add_argument("-csv", "--csv",
-        help=f"write csv files in {lib.CSV_OUTPUT_DIR}",
+        help=f"write csv files in specified dir",
         action='store')
-    parser.add_argument("output_dir",
-        help="directory to dump CSVs",
-        )
 
     # argparse replaces - with _ to avoid having to use e.g. args.__dict__["skip-flatten"]
     parser.add_argument("-sf", "--skip-flatten",
@@ -38,16 +35,12 @@ if __name__ == '__main__':
                 out_dir = lib.CSV_OUTPUT_DIR + os.sep + mt.user + os.sep
                 if args.skip_flatten:
                     csvgen.write_csv(
-                        points=(point for segment in mt.track.segments for point in segment)
-                        input_dir=args.input_dir,
-                        out_file=out_dir + mt.get_time_bounds()[0].isoformat(),
+                        points=(point for segment in mt.track.segments for point in segment),
+                        out_file=out_dir + mt.get_time_bounds()[0].isoformat() + ".csv",
                         ).main()
                 else:
                     for segment in mt.track.segments:
                         csvgen.write_csv(
                             points=segment.points,
-                            input_dir=args.input_dir,
-                            out_file=out_dir + segment.get_time_bounds()[0].isoformat(),
+                            out_file=out_dir + segment.get_time_bounds()[0].isoformat() + ".csv",
                         )
-
-    sesh = sessions[0]

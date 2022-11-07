@@ -1,17 +1,13 @@
 import os
 import csv
 
-import lib
-import gpxgen
-import serials
-
 
 # class CSVGenerator:
     # def __init__(self, points, input_dir, output_dir):
     #     self.input_dir = input_dir + os.sep
     #     self.output_dir = output_dir + os.sep
 
-def write_csv(points, input_dir, out_file):
+def write_csv(points, out_file):
     """given iterable<GPXTrackPoint>, write csv to specified path
 
     Args:
@@ -19,7 +15,7 @@ def write_csv(points, input_dir, out_file):
         gopro_user (str): user associated with a gopro
         out_file (str): name the .csv (no extension)
     """
-    os.makedirs(out_file, exist_ok=True)
+    os.makedirs(out_file.rsplit(os.sep, maxsplit=1)[0], exist_ok=True)
     with open(out_file, "w+", newline='') as out_file:
         writer = csv.writer(out_file)
 
