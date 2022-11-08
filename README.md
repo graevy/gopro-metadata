@@ -23,4 +23,4 @@ TODO:
 - logger instead of stdout?
 - test suite with nov 3rd data
 - UHF propagation conditions (SFI, KI, AI) would be better than meteostat for this
-    - see https://www.hamqsl.com/solar.html
+    - see https://www.dxmaps.com/spots/mapg.php?Lan=E&Frec=430&ML=&Map=NA&HF=&DXC=ING2&GL=
