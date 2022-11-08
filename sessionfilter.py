@@ -19,7 +19,7 @@ class MetaSegment:
     hilights: tuple
 
 
-def same_session(seg_a, seg_b):
+def _same_session(seg_a, seg_b):
     a_start, a_end = (bound.timestamp() for bound in seg_a.get_time_bounds())
     b_start, b_end = (bound.timestamp() for bound in seg_b.get_time_bounds())
 
@@ -75,7 +75,7 @@ def generate_sessions(args):
             sessions.append(current_session)
             break
 
-        if same_session(meta_segments[i].segment, ms.segment):
+        if _same_session(meta_segments[i].segment, ms.segment):
             sessions.append(current_session)
             current_session.clear()
 

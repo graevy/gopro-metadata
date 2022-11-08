@@ -9,6 +9,11 @@ import sessionfilter
 
 
 def parse_args():
+    """collects cli args
+
+    Returns:
+        argparse.ArgumentParser: with args represented as class fields
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("input_dir", help="directory of gopro LRVs (and MP4s, THMs)")
 
@@ -28,10 +33,13 @@ def parse_args():
 
 
 if __name__ == '__main__':
+    # collect args
     args = parse_args()
 
+    # filter all the input videos into sessions based on their start and end times
     sessions = sessionfilter.generate_sessions(args)
 
+    # csv dumping. awkward with all the conditional args
     if args.csv:
         root = args.output_dir if args.output_dir else lib.CSV_OUTPUT_DIR
         for session in sessions:

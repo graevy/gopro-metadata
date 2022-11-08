@@ -1,13 +1,26 @@
-This extracts embedded GPX data inside gopro LRVs via exiftool:
-```gpxgen.generate_gpxes(dir, video_ext=".lrv")```
-It can convert extracted GPX data from XML to CSV via gpxpy:
-```csvgen.CSVGenerator(input, output, newuser=False, skip_flatten=False).main()```
-Meteostat integration for weather data:
-```meteo.weather_from_gpx(gpx)```
+This extracts embedded GPX data inside gopro LRVs via exiftool,
+
+Converts extracted GPX data from XML to CSV via gpxpy,
+
+Weather data correlation via meteostat integration
 
 
+Dependencies (via pip):
+- gpxpy
+- meteostat
+- exiftool
 
 Usage:
-- pip install gpxpy
 - mount gopro sdcard
-- python main.py path/to/gopro/videos csv/dump/dir
+- python -i main.py path/to/gopro/videos [-c] [-o DIR]
+
+TODO:
+- automate csv -> google maps
+- session & filter documentation
+    - session hilight features? feels like a dead end; no hilight annotation
+- automate some meteostat features
+    - smart amount of stations instead of just 10?
+- logger instead of stdout?
+- test suite with nov 3rd data
+- UHF propagation conditions (SFI, KI, AI) would be better than meteostat for this
+    - see https://www.hamqsl.com/solar.html
