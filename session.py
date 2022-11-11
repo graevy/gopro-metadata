@@ -10,7 +10,7 @@ import meteo
 @dataclasses.dataclass
 class MetaTrack:
     user: str
-    track: gpxpy.gpx.GPXTrack = gpxpy.gpx.GPXTrack()
+    track: gpxpy.gpx.GPXTrack
     weather: typing.Optional[meteostat.Hourly] = None
     hilights: list = dataclasses.field(
         default_factory=lambda : []
@@ -37,7 +37,7 @@ class Session:
     def __init__(self, meta_segments):
         self.users = set(mt.user for mt in meta_segments)
 
-        self.mt_map = {user:MetaTrack(user) for user in self.users}
+        self.mt_map = {user:MetaTrack(user, gpxpy.gpx.GPXTrack()) for user in self.users}
         self.meta_tracks = tuple(self.mt_map.values())
 
         # unpack the metasegments into metatracks; attach hilights
