@@ -74,6 +74,9 @@ class Session:
             self.weather = None
             print("didn't connect to weather service")
 
+    def get_time_bounds(self):
+        return (self.t_0, self.t_f)
+
     def locations_at_time(self, time):
         return tuple(mt.track.get_location_at(time) for mt in self.meta_tracks)
 
