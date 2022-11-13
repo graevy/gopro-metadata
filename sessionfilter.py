@@ -47,7 +47,7 @@ def generate_sessions(args):
     for file in os.listdir(args.input_dir):
         if file.endswith(lib.INPUT_VIDEO_EXT):
             path = args.input_dir + os.sep + file
-            user = serials.check_file(path)
+            user = serials.get_serial_from_file(path)
             segment = gpxgen.parse_segment(path).tracks[0].segments[0]
             start_time, end_time = segment.get_time_bounds()
 

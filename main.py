@@ -39,6 +39,9 @@ if __name__ == '__main__':
     # filter all the input videos into sessions based on their start and end times
     sessions = sessionfilter.generate_sessions(args)
 
+    # for convenience
+    mts = [mt for session in sessions for mt in session.meta_tracks]
+
     # csv dumping. awkward with all the conditional args
     if args.csv:
         root = args.output_dir if args.output_dir else lib.CSV_OUTPUT_DIR
