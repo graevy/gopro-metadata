@@ -1,9 +1,8 @@
 __pycache__
 .vscode
-backup_sample_data
+sample_data
 csv
-gpx_temp_dir
+kml
 tgtoken
 tgdata
 tg.py
-xmltocsv.py
