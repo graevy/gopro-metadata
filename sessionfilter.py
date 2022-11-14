@@ -1,24 +1,8 @@
 import os
 import lib
-import dataclasses
-import gpxpy
-import datetime
 
 import session
 import gpxgen
-import serials
-import hilight
-
-
-@dataclasses.dataclass
-class MetaSegment:
-    name: str
-    path: str
-    user: str
-    segment: gpxpy.gpx.GPXTrackSegment
-    start_time: datetime.datetime
-    end_time: datetime.datetime
-    hilights: tuple
 
 
 def _same_session(seg_a, seg_b):
@@ -43,33 +27,14 @@ def _same_session(seg_a, seg_b):
 
 def generate_sessions(args):
     # firstly, filter and process files
-    meta_segments = []
-    for file in os.listdir(args.input_dir):
-        if file.endswith(lib.INPUT_VIDEO_EXT):
-            path = args.input_dir + os.sep + file
-            user = serials.get_serial_from_file(path)
-            segment = gpxgen.parse_segment(path).tracks[0].segments[0]
-            start_time, end_time = segment.get_time_bounds()
+    path = args.input_dir + os.sep
+    meta_segments = sorted((
+        gpxgen.parse_segment(path + file) for file in os.listdir(path)\
+            if file.endswith(lib.INPUT_VIDEO_EXT)
+        ),
+        key=lambda ms: ms.start_time
+    )
 
-            hilights = tuple(
-                hilight.HiLight(
-                    # every hilight is just a time float, so adding it to the start time
-                    # gets the moment it occurred
-                    # maybe unnecessary to work with absolute time?
-                    time = start_time + datetime.timedelta(seconds=hl),
-                    user = user
-                    ) for hl in sorted(
-                hilight.examine_mp4(path)
-                    )
-            )
-
-            meta_segments.append(
-                MetaSegment(
-                    file, path, user, segment, start_time, end_time, hilights
-                )
-            )
-
-    meta_segments.sort(key=lambda ms: ms.start_time)
 
     if len(meta_segments) < 1:
         print(f"no {lib.INPUT_VIDEO_EXT} files in {args.input_dir}")

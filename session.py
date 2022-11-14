@@ -11,10 +11,11 @@ import meteo
 class MetaTrack:
     user: str
     track: gpxpy.gpx.GPXTrack
+    files: list
     weather: typing.Optional[meteostat.Hourly] = None
     hilights: list = dataclasses.field(
         default_factory=lambda : []
-        )
+        ) 
 
 
 @dataclasses.dataclass
@@ -37,13 +38,18 @@ class Session:
     def __init__(self, meta_segments):
         self.users = set(mt.user for mt in meta_segments)
 
-        self.mt_map = {user:MetaTrack(user, gpxpy.gpx.GPXTrack()) for user in self.users}
+        self.mt_map = {
+            user:MetaTrack(
+                user=user, track=gpxpy.gpx.GPXTrack(), files=[]
+            ) for user in self.users
+        }
         self.meta_tracks = tuple(self.mt_map.values())
 
         # unpack the metasegments into metatracks; attach hilights
         for ms in meta_segments:
             mt = self.mt_map[ms.user]
             mt.track.segments.append(ms.segment)
+            mt.files.append(ms.file)
             mt.hilights.append(ms.hilights)
 
         # session weather needs the earliest and last track times
