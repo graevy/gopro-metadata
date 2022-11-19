@@ -19,10 +19,8 @@ def _same_session(seg_a, seg_b):
     bounds_close(a_start, b_end) or \
     bounds_close(a_end, b_start) or \
     bounds_close(a_end, b_end):
-        # print("close!")
         return True
     else:
-        # print("far!")
         return False
 
 def generate_sessions(args):

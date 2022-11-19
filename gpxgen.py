@@ -2,6 +2,7 @@ import gpxpy
 import exiftool
 import dataclasses
 import datetime
+import llist
 
 import lib
 import serials
@@ -18,20 +19,25 @@ class MetaSegment:
     hilights: list
 
 
-# gopros occasionally spawn incorrect gpsdatetime data*, so
+# gopros occasionally spawn incorrect gps data*, so
 # delete timestamps before file creation date minus file duration.
 # subtract file duration because file creation is tagged
 # arbitrarily between start and end time! fun
+# also, lat/long/ele can be absurd too
+# 0,0,0 coordinates in the middle of the pacific, etc
 def sanity_check(file, seg):
-    """discards bad gpsdatetime metadata
+    """discards bad gps data
 
     Args:
-        file (str): to get file creation and length metadata via exiftool with
+        file (str): to source metadata via exiftool from
         seg (GPXTrackSegment): to sanity-check
 
     Returns:
         GPXTrackSegment: with junk data discarded
     """
+    if len(seg.points) == 0:
+        print("empty segment passed from:",file)
+        return seg
     # grabbing file creation date and duration
     with exiftool.ExifToolHelper() as et:
         tags = et.get_tags(file, ["QuickTime:CreateDate", "QuickTime:Duration"])[0]
@@ -61,6 +67,51 @@ def sanity_check(file, seg):
             # i have never seen timestamps revert after syncing. break here
             else: break
 
+    # now check for bad locations: if a location is way off avg, discard it
+    # use doubly linked list for O(1) removal
+    dll = llist.dllist(seg.points)
+
+    # "way off avg" is defined as the diff > the avg lat/long divided by this value,
+    # this should work for all cases except supersonic
+    # e.g. if avg_lat is 50 and point.latitude is suddenly 60,
+    # if abs(50 - 60) > avg_lat/threshold, discard the point
+    comparison_threshold = 20
+
+    # remove points with no location or location set to 0,0
+    bad_idxes = [idx for idx,point in enumerate(dll)\
+        if not point.latitude or not point.longitude]
+    
+    # (removing a value from the linked list will cancel iteration)
+    for idx in bad_idxes:
+        dll.remove(dll.nodeat(idx))
+
+    # starting from segment end,
+    # compare subsequent points to previous point and remove if bad.
+    # this relies on accurate end-of-segment data;
+    # gps usually synchronizes during a segment
+    # TODO P3: once junk data is identified, stop iterating
+    bad_idxes.clear()
+    idx = len(dll) - 1
+    prev_lat  = dll.last.value.latitude
+    prev_long = dll.last.value.longitude
+    for point in reversed(dll):
+        idx -= 1
+        lat_diff  = point.latitude  - prev_lat
+        long_diff = point.longitude - prev_long
+        lat_comparator = abs(prev_lat / comparison_threshold)
+        long_comparator = abs(prev_long / comparison_threshold)
+        if lat_diff > lat_comparator or\
+            long_diff > long_comparator:
+            bad_idxes.append(idx)
+        else:
+            prev_lat = point.latitude
+            prev_long = point.longitude
+
+    for idx in bad_idxes:
+        dll.remove(dll.nodeat(idx))
+    
+    seg.points = [point for point in dll]
+
     return seg
 
 
@@ -84,26 +135,15 @@ def parse_segment(file):
     seg = sanity_check(file, seg)
     serial = serials.get_serial_from_file(file)
     start_time, end_time = seg.get_time_bounds()
+
     hilights = []
     for hl in sorted(hilight.examine_mp4(file)):
         hilights.append(hilight.HiLight(
+            # every hilight is just a time float, so adding it to the start time
+            # gets the moment it occurred
             time = start_time + datetime.timedelta(seconds=hl),
             user = serial
         ))
-    # if start_time:
-    #     hilights = tuple(
-    #         hilight.HiLight(
-    #             # every hilight is just a time float, so adding it to the start time
-    #             # gets the moment it occurred
-    #             # maybe unnecessary to work with absolute time?
-    #             time = start_time + datetime.timedelta(seconds=hl),
-    #             user = serial
-    #             ) for hl in sorted(
-    #         hilight.examine_mp4(file)
-    #             )
-    #     )
-    # else:
-    #     hilights = (())
 
     return MetaSegment(seg, file, serial, start_time, end_time, hilights)
 

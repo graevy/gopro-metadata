@@ -3,7 +3,6 @@ from os import sep
 
 import lib
 import csvgen
-import gpxgen
 import session
 import sessionfilter
 
@@ -59,3 +58,5 @@ if __name__ == '__main__':
                             points=segment.points,
                             out_file=out_dir + segment.get_time_bounds()[0].isoformat() + ".csv",
                         )
+
+    sessions[0].hilight_reel()

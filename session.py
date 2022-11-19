@@ -1,21 +1,58 @@
 import datetime
 import gpxpy
 import dataclasses
-import meteostat
-import typing
+from typing import Optional
 
 import meteo
 
 
-@dataclasses.dataclass
 class MetaTrack:
-    user: str
-    track: gpxpy.gpx.GPXTrack
-    files: list
-    weather: typing.Optional[meteostat.Hourly] = None
-    hilights: list = dataclasses.field(
-        default_factory=lambda : []
-        ) 
+    def __init__(self, user, meta_segments):
+        self.user = user
+        self.track = gpxpy.gpx.GPXTrack()
+        self.files = []
+        self.hilights = []
+        for ms in meta_segments:
+            self.track.segments.append(ms.segment)
+            self.files.append(ms.file)
+            self.hilights.extend(ms.hilights)
+            if ms.user != user:
+                raise Exception(f"{ms.user} is not {user}, but is in same MetaTrack")
+
+        self.start_time, self.end_time = self.track.get_time_bounds()
+
+    # the GPXTrack.get_location_at method is incomplete. it doesn't return a location
+    # and it doesn't approximate location from nearby points
+    # it doesn't need to be Ω(points) either
+    # TODO P3: submit another gpxpy pr if the first is merged
+    def get_location_at(self, time) -> Optional[gpxpy.gpx.GPXTrackPoint]:
+
+        # not sure which time type i want yet
+        if type(time) in (int, float):
+            time = self.start_time + datetime.timedelta(seconds=time)
+
+        if time < self.start_time or time > self.end_time:
+            return None
+
+        # determine which segment to inspect for location
+        # time could also be between segments;
+        # track the end of the previous segment and the bounds of the current segment
+        for segment in self.track.segments:
+            seg_start, seg_end = segment.get_time_bounds()
+            # case: the time is inside this segment and we're done
+            if seg_start <= time <= seg_end:
+                points = segment.points
+                break
+            # case: the time is before the current segment
+            # this should never trigger during the first seg
+            if time < seg_start:
+                return None
+
+        # search the segment to find which points surround time
+        # TODO P2: redo this with binary search, approx location
+        for point in points:
+            if point.time and point.time >= time:
+                return point
 
 
 @dataclasses.dataclass
@@ -27,30 +64,24 @@ class HiLight:
 
 @dataclasses.dataclass
 class HiLightCluster:
-    entries: tuple
+    hilights: tuple
     center_time: datetime.datetime
     center_pos: gpxpy.gpx.GPXTrackPoint
-    humidity: typing.Optional[float]
-    temperature: typing.Optional[float]
+    humidity: Optional[float]
+    temperature: Optional[float]
 
 
 class Session:
     def __init__(self, meta_segments):
-        self.users = set(mt.user for mt in meta_segments)
+        self.users = set(ms.user for ms in meta_segments)
 
-        self.mt_map = {
-            user:MetaTrack(
-                user=user, track=gpxpy.gpx.GPXTrack(), files=[]
-            ) for user in self.users
-        }
-        self.meta_tracks = tuple(self.mt_map.values())
-
-        # unpack the metasegments into metatracks; attach hilights
+        seg_map = {user:[] for user in self.users}
         for ms in meta_segments:
-            mt = self.mt_map[ms.user]
-            mt.track.segments.append(ms.segment)
-            mt.files.append(ms.file)
-            mt.hilights.append(ms.hilights)
+            seg_map[ms.user].append(ms)
+
+        self.meta_tracks = [
+            MetaTrack(user, segs) for user, segs in seg_map.items()
+        ]
 
         # session weather needs the earliest and last track times
         if len(self.meta_tracks) < 1:
@@ -65,10 +96,14 @@ class Session:
                     self.t_f = t_max
 
         # center of the edges of the session
-        center_latitude = sum(mt.track.get_center().latitude for mt in self.meta_tracks) \
-            / len(self.meta_tracks)
-        center_longitude = sum(mt.track.get_center().longitude for mt in self.meta_tracks) \
-            / len(self.meta_tracks)
+        center_latitude  = 0
+        center_longitude = 0
+        for mt in self.meta_tracks:
+            center = mt.track.get_center()
+            center_latitude  += center.latitude
+            center_longitude += center.longitude
+        center_latitude  /= len(self.meta_tracks)
+        center_longitude /= len(self.meta_tracks)
         self.center = (center_latitude, center_longitude)
 
         # weather
@@ -80,15 +115,15 @@ class Session:
             self.weather = None
             print("didn't connect to weather service")
 
-    def get_time_bounds(self):
+    def get_time_bounds(self) -> tuple:
         return (self.t_0, self.t_f)
 
-    def locations_at_time(self, time):
+    def locations_at_time(self, time) -> tuple:
         return tuple(mt.track.get_location_at(time) for mt in self.meta_tracks)
 
     # if a highlight is within 10s of another highlight, treat them as the same
     # quick and dirty linearithmic
-    def _filter_hilights(self):
+    def _group_hilights(self):
         """groups hilights into clusters more than 10s apart
 
         Returns:
@@ -112,49 +147,57 @@ class Session:
                 break
             if hilights[i].time.timestamp() - hl.time.timestamp() > 10:
                 clusters.append(current_cluster)
-                current_cluster.clear()
+                current_cluster = []
         return clusters
 
     def hilight_reel(self):
-        for cluster in self._filter_hilights():
-            # TODO P3: naming hell
+        for cluster in self._group_hilights():
+
+            # mean time value of each hilight inside a cluster
             cluster_avg_time = datetime.datetime.fromtimestamp(
                 sum(hl.time.timestamp() for hl in cluster) / len(cluster),
-                # TODO P2: timezone hell
                 tz=gpxpy.gpxfield.SimpleTZ("Z")
             )
 
-            loc_map = {
-                mt.user:\
-                mt.track.get_location_at(cluster_avg_time)\
-                for mt in self.meta_tracks
-            }
+            print(f"""Event at {cluster_avg_time.time()}:""")
+            for mt in self.meta_tracks:
+                loc = mt.get_location_at(cluster_avg_time)
+                if loc is not None:
+                    print(f"    Device {mt.user} @ Lat: {loc.latitude}, Long: {loc.longitude}")
 
-            center_lat, center_long, center_ele = 0, 0, 0
-            for point in loc_map.values():
-                for loc in point:
-                    center_lat += loc.latitude
-                    center_long += loc.longitude
-                    center_ele += loc.elevation
-            center_lat /= len(loc_map)
-            center_long /= len(loc_map)
-            center_ele /= len(loc_map)
 
-            center = tuple((center_lat, center_long, center_ele))
+#             # map of user:position during each cluster event
+#             loc_map = {}
+#             for mt in self.meta_tracks:
+#                 loc = mt.get_location_at(cluster_avg_time)
+#                 if loc is not None:
+#                     loc_map[mt.user] = loc
 
-            # TODO P1: test
-            print(f"""Event at {cluster_avg_time.time()} \
-                from {len(cluster)} devices centered at {center}: """)
+#             # getting the mean position of all gopros in this cluster
+#             # center = mt.get_center_from_locations(loc_map.values())
+#             center_lat, center_long, center_ele = 0,0,0
+#             for gopro in loc_map.values():
+#                 center_lat  += gopro.latitude
+#                 center_long += gopro.longitude
+#                 center_ele  += gopro.elevation
 
-            for entry in cluster:
-                lat_offset  = entry.latitude  - center.latitude
-                long_offset = entry.longitude - center.longitude
-                ele_offset  = entry.elevation - center.elevation
-                dist_from_center = (
-                    lat_offset  ** 2 +\
-                    long_offset ** 2 +\
-                    ele_offset ** 2
-                ) ** (1/2)
+#             center = gpxpy.gpx.GPXTrackPoint(
+#                 latitude  = center_lat,
+#                 longitude = center_long,
+#                 elevation = center_ele
+#             )
 
-                print(f"""    User {entry.user} recorded {dist_from_center} from center: \
-                    {lat_offset} ΔLat., {long_offset} ΔLong., {ele_offset} ΔElev.""")
+#             for entry in cluster:
+#                 loc = loc_map[entry.user]
+#                 lat_offset  = loc.latitude  - center.latitude
+#                 long_offset = loc.longitude - center.longitude
+#                 ele_offset  = loc.elevation - center.elevation
+
+#                 dist_from_center = (
+#                     lat_offset  ** 2 +\
+#                     long_offset ** 2 +\
+#                     ele_offset ** 2
+#                 ) ** (1/2)
+
+#                 print(f"""    User {entry.user} recorded {dist_from_center} from center:
+# {lat_offset} ΔLat., {long_offset} ΔLong., {ele_offset} ΔElev.\n""")
