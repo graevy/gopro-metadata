@@ -19,6 +19,9 @@ class MetaSegment:
     hilights: list
 
 
+# TODO P3: can remove llist dependency by truncating segments at bad indexes,
+# instead of removing individually bad data
+
 # gopros occasionally spawn incorrect gps data*, so
 # delete timestamps before file creation date minus file duration.
 # subtract file duration because file creation is tagged
@@ -89,7 +92,7 @@ def sanity_check(file, seg):
     # compare subsequent points to previous point and remove if bad.
     # this relies on accurate end-of-segment data;
     # gps usually synchronizes during a segment
-    # TODO P3: once junk data is identified, stop iterating
+    # TODO P3: once junk data is identified, stop iterating?
     bad_idxes.clear()
     idx = len(dll) - 1
     prev_lat  = dll.last.value.latitude

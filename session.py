@@ -56,16 +56,10 @@ class MetaTrack:
 
 
 @dataclasses.dataclass
-class HiLight:
-    time: datetime.datetime
-    user: str
-    location: gpxpy.gpx.GPXTrackPoint
-
-
-@dataclasses.dataclass
 class HiLightCluster:
     hilights: tuple
     center_time: datetime.datetime
+    positions: dict[str:gpxpy.gpx.GPXTrackPoint]
     center_pos: gpxpy.gpx.GPXTrackPoint
     humidity: Optional[float]
     temperature: Optional[float]
@@ -113,7 +107,7 @@ class Session:
                 )
         except:
             self.weather = None
-            print("didn't connect to weather service")
+            print("Failed to connect to weather service")
 
     def get_time_bounds(self) -> tuple:
         return (self.t_0, self.t_f)
@@ -123,11 +117,11 @@ class Session:
 
     # if a highlight is within 10s of another highlight, treat them as the same
     # quick and dirty linearithmic
-    def _group_hilights(self):
+    def _group_hilights(self) -> HiLightCluster:
         """groups hilights into clusters more than 10s apart
 
         Returns:
-            list[list[hilight]]: of clusters
+            HiLightCluster
         """
         hilights = sorted(
             (hl for mt in self.meta_tracks for hl in mt.hilights),
@@ -138,32 +132,63 @@ class Session:
             print("no highlights to filter")
             return []
 
+        # grouping algorithm. if the next hilight is more than 10s from current, split them
         clusters = []
         current_cluster = []
-        for i, hl in enumerate(hilights, start=1):
+        for idx, hl in enumerate(hilights, start=1):
             current_cluster.append(hl)
-            if i == len(hilights):
+            if idx == len(hilights):
                 clusters.append(current_cluster)
                 break
-            if hilights[i].time.timestamp() - hl.time.timestamp() > 10:
+            if hilights[idx].time.timestamp() - hl.time.timestamp() > 10:
                 clusters.append(current_cluster)
                 current_cluster = []
-        return clusters
 
-    def hilight_reel(self):
-        for cluster in self._group_hilights():
+        for idx,cluster in enumerate(clusters):
 
-            # mean time value of each hilight inside a cluster
-            cluster_avg_time = datetime.datetime.fromtimestamp(
+            # get avg time
+            center_time=datetime.datetime.fromtimestamp(
                 sum(hl.time.timestamp() for hl in cluster) / len(cluster),
                 tz=gpxpy.gpxfield.SimpleTZ("Z")
             )
 
-            print(f"""Event at {cluster_avg_time.time()}:""")
-            for mt in self.meta_tracks:
-                loc = mt.get_location_at(cluster_avg_time)
+            # get avg location:
+            # get each gopro location at center time
+            locs = {mt.user:mt.get_location_at(center_time) for mt in self.meta_tracks}
+
+            # average them
+            filtered_locs = tuple(filter(None, locs.values()))
+            center_lat, center_long = 0,0
+            for loc in filtered_locs:
+                center_lat += loc.latitude
+                center_long += loc.longitude
+            center_pos = gpxpy.gpx.GPXTrackPoint(
+                latitude=center_lat / len(filtered_locs),
+                longitude=center_long / len(filtered_locs)
+            )
+
+            clusters[idx] = HiLightCluster(
+                hilights=cluster,
+                center_time=center_time,
+                positions=locs,
+                center_pos=center_pos,
+                humidity=None,
+                temperature=None
+            )
+
+        return clusters
+                
+    def hilight_reel(self):
+        for cluster in self._group_hilights():
+
+            center = cluster.center_pos
+            print(
+f"Event at {cluster.center_time.time()} centered at {center.latitude}, {center.longitude}:"
+            )
+            for device,loc in cluster.positions.items():
                 if loc is not None:
-                    print(f"    Device {mt.user} @ Lat: {loc.latitude}, Long: {loc.longitude}")
+                    print(f"""    Device {device} @ {gpxpy.geo.haversine_distance(
+                        center.latitude, center.longitude, loc.latitude, loc.longitude)}""")
 
 
 #             # map of user:position during each cluster event

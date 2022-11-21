@@ -2,7 +2,7 @@ __pycache__
 .vscode
 sample_data
 csv
-kml
 tgtoken
 tgdata
 tg.py
+tmp.py
