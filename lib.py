@@ -1,3 +1,5 @@
 GPX_FORMAT_FILE = "gpx.fmt"
 CSV_OUTPUT_DIR = "csv"
+KML_OUTPUT_DIR = "kml"
+KMZ_OUTPUT_DIR = "kmz"
 INPUT_VIDEO_EXT = "LRV"

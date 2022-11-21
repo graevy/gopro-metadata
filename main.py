@@ -3,6 +3,7 @@ from os import sep
 
 import lib
 import csvgen
+import kmlgen
 import session
 import sessionfilter
 
@@ -18,15 +19,28 @@ def parse_args():
 
     parser.add_argument("-c", "--csv",
         help=f"write csv files in {lib.CSV_OUTPUT_DIR}",
-        action='store_true')
-    parser.add_argument("-o", "--output-dir",
-        help=f"force a non-default csv write dir",
-        action='store')
+        action='store_true'
+        )
+    # parser.add_argument("-o", "--output-dir",
+    #     help=f"force a non-default csv write dir",
+    #     action='store'
+    #     )
 
     # argparse replaces - with _ to avoid having to use e.g. args.__dict__["skip-flatten"]
     parser.add_argument("-sf", "--skip-flatten",
         help="don't combine track segments into one output csv",
-        action='store_true')
+        action='store_true'
+        )
+
+    parser.add_argument("-k", "--kml",
+        help=f"write kml files to {lib.KML_OUTPUT_DIR}",
+        action='store_true'
+        )
+
+    parser.add_argument("-z", "--kmz",
+        help=f"write kmz files to {lib.KMZ_OUTPUT_DIR}",
+        action="store_true"
+        )
 
     return parser.parse_args()
 
@@ -59,4 +73,5 @@ if __name__ == '__main__':
                             out_file=out_dir + segment.get_time_bounds()[0].isoformat() + ".csv",
                         )
 
-    sessions[0].hilight_reel()
+    for session in sessions:
+        kmlgen.dump_hilight_clusters(session._group_hilights(), kmz=True)
