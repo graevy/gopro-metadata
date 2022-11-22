@@ -117,7 +117,7 @@ class Session:
 
     # if a highlight is within 10s of another highlight, treat them as the same
     # quick and dirty linearithmic
-    def _group_hilights(self) -> list[HiLightCluster]:
+    def group_hilights(self) -> list[HiLightCluster]:
         """groups hilights into clusters more than 10s apart
 
         Returns:
@@ -179,7 +179,7 @@ class Session:
         return clusters
                 
     def hilight_reel(self):
-        for cluster in self._group_hilights():
+        for cluster in self.group_hilights():
 
             center = cluster.center_pos
             print(

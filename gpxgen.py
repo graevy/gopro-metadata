@@ -1,7 +1,9 @@
-import gpxpy
-import exiftool
+import os
 import dataclasses
 import datetime
+
+import gpxpy
+import exiftool
 import llist
 
 import lib
@@ -149,6 +151,26 @@ def parse_segment(file):
         ))
 
     return MetaSegment(seg, file, serial, start_time, end_time, hilights)
+
+
+# incoherently busted. to_xml is a wrapper and i have to take a look at what it uses
+def dump_session_hilights(session):
+    for cluster in session.group_hilights():
+        time = cluster.center_time.time().isoformat().replace(":","-")
+
+        out_dir = lib.GPX_OUTPUT_DIR + os.sep
+        out_dir += cluster.center_time.date().isoformat() + os.sep
+        os.makedirs(out_dir, exist_ok=True)
+        out_file = out_dir + time + ".gpx"
+
+        seg = gpxpy.gpx.GPXTrackSegment(points=list(cluster.positions.values()))
+        track = gpxpy.gpx.GPXTrack()
+        track.segments.append(seg)
+        obj = gpxpy.gpx.GPX()
+        obj.tracks.append(track)
+                
+        with open(out_file, "w+") as f:
+            f.writelines(obj.to_xml())
 
 
 # example of gpsdatetime initialization bug

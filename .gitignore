@@ -1,7 +1,10 @@
 __pycache__
 .vscode
+data
 sample_data
 csv
+kml
+gpx
 tgtoken
 tgdata
 tg.py
