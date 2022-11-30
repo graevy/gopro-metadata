@@ -1,23 +1,18 @@
-This extracts embedded GPX data inside gopro LRVs via exiftool,
-
-Converts extracted GPX data from XML to CSV via gpxpy,
-
-Weather data correlation via meteostat integration
+This extracts embedded GPX data inside gopro MP4s/LRVs to dump to CSV, KML, or GPX files
 
 
-Dependencies (via pip):
+Dependencies:
 - gpxpy
+- simplekml
 - meteostat
 - exiftool
+- llist
 
 Usage:
-- mount gopro sdcard
-- python -i main.py path/to/gopro/videos [-c] [-o DIR]
+- py main.py path/to/gopro/videos [--csv] [--gpx] [--kml]
 
 TODO:
 - automate csv -> google maps
-- session & filter documentation
-    - session hilight features? feels like a dead end; no hilight annotation
 - automate some meteostat features
     - smart amount of stations instead of just 10?
 - logger instead of stdout?
